@@ -1,0 +1,379 @@
+#define NOTE_C5   523
+#define NOTE_E5   659
+#define NOTE_G5   784
+#define NOTE_A5   880
+#include <LiquidCrystal_I2C.h>
+LiquidCrystal_I2C lcd(0x27,20,4);
+
+int PinBuzzer = 2;
+int FreqBuzzer = 1000;
+int ledPin = 13;
+int buttonPin = 8;
+int debounceDelay = 30;
+int dotLength = 240; 
+int dotSpace = dotLength; 
+int dashLength = dotLength*3;
+int letterSpace = dotLength*3;
+int wordSpace = dotLength*7; 
+float wpm = 1200./dotLength;  
+int t1, t2, onTime, gap;
+bool newLetter, newWord, letterFound, keyboardText;
+int lineLength = 0;
+int maxLineLength = 20; 
+int f = 0;
+
+char* letters[] = 
+{
+".-", "-...", "-.-.", "-..", ".", "..-.", "--.", "....", "..", // A-I
+".---", "-.-", ".-..", "--", "-.", "---", ".--.", "--.-", ".-.", // J-R 
+"...", "-", "..-", "...-", ".--", "-..-", "-.--", "--.." // S-Z
+};
+
+char* numbers[] = 
+{
+"-----", ".----", "..---", "...--", "....-", //0-4
+".....", "-....", "--...", "---..", "----." //5-9
+};
+
+String DotDashSeq = "";
+char keyLetter, ch;
+int i, index;
+
+int melody[] = {
+  NOTE_C5, NOTE_E5, NOTE_G5, NOTE_A5
+};
+
+int noteDurations[] = {
+  8, 8, 8, 4
+};
+
+void playStartupMelody() {
+  int numNotes = sizeof(melody) / sizeof(melody[0]);
+  for (int thisNote = 0; thisNote < numNotes; thisNote++) {
+    int note = melody[thisNote];
+    int duration = 1000 / noteDurations[thisNote];
+
+    if (note != 0) {
+      tone(PinBuzzer, note, duration);
+    }
+    delay(duration * 1.25); // petite pause
+    noTone(PinBuzzer);
+  }
+}
+
+void setup() 
+{
+  pinMode(ledPin, OUTPUT);
+  pinMode(PinBuzzer, OUTPUT);
+  pinMode(buttonPin, INPUT_PULLUP);
+  Serial.begin(9600);
+  Serial.println();
+  Serial.println("-------------------------------");
+  Serial.println("Hello! I am your morse translator ROBOT.");
+  Serial.print("Speed=");
+  Serial.print(wpm);
+  Serial.print("wpm, ");
+  Serial.print("dot=");
+  Serial.print(dotLength);
+  Serial.println("ms");   
+  
+// lCD boot sequence 
+  lcd.init();
+  lcd.backlight();
+  playStartupMelody();
+  lcd.setCursor(3,0);
+  lcd.print("Hello !");
+  lcd.setCursor(2,1);
+  lcd.print("I am Morsy .");
+  delay(2500);
+  lcd.init();
+  lcd.setCursor(0,0);
+  lcd.print("Your personal:");
+  lcd.setCursor(0,1);
+  lcd.print("MORSE TRANSLATOR!");
+  delay(2500);
+  lcd.init();
+  lcd.setCursor(0,0);
+  lcd.print("Give me a Text");
+  lcd.setCursor(0,1);
+  lcd.print("And i will...");
+  delay(2500);
+  lcd.init();
+  lcd.setCursor(2,0);
+  lcd.print("TRANSFORM IT");
+  lcd.setCursor(0,1);
+  lcd.print("INTO MORSE CODE!");
+
+// Test LED et buzzer
+
+  digitalWrite(ledPin, HIGH);
+  delay(2000);
+  digitalWrite(ledPin, LOW);
+  delay(600);
+
+//demo
+//A
+  Serial.print("A .-  ");
+  index = 'A'-65;
+  lcd.init();
+  lcd.setCursor(0,0);
+  lcd.print("A.-");
+  lcd.setCursor(1,0);
+  lcd.print(letters[index]);
+  flashSequence(letters[index]);
+  delay(wordSpace);
+//B
+  Serial.print("B -...  ");
+  index = 'B'-65;
+  lcd.init();
+  lcd.setCursor(0,0);
+  lcd.print("B-...");
+  lcd.setCursor(1,0);
+  lcd.print(letters[index]);
+  flashSequence(letters[index]);  
+   delay(wordSpace);
+//C
+  Serial.print("C -.-.  ");
+  index = 'C'-65;
+  lcd.init();
+  lcd.setCursor(0,0);
+  lcd.print("C-.-.");
+  lcd.setCursor(1,0);
+  lcd.print(letters[index]);
+  flashSequence(letters[index]);
+  delay(wordSpace);
+// Message 
+  Serial.println();
+  Serial.println("-------------------------------");
+  Serial.println("Click the Message Fiel and");
+  Serial.println("type text then press Enter, or");
+  Serial.println("Key in Morse Code to decode:");
+  Serial.println("-------------------------------");
+  lcd.init();
+  lcd.setCursor(0,0);
+  lcd.print("Give me a Text");
+  lcd.setCursor(0,1);
+  lcd.print("or a code ! "); 
+  newLetter = false; 
+  newWord = false;  
+  keyboardText = false; 
+}
+
+void loop() 
+{
+  if (Serial.available() > 0)
+  {
+    if (keyboardText == false) 
+    {
+      Serial.println();
+      Serial.println("-------------------------------");
+    }
+    keyboardText = true;
+    ch = Serial.read();
+    if (ch >= 'a' && ch <= 'z')
+    { 
+    ch = ch-32; 
+    }
+    while ( f == 0 )
+    {
+      lcd.init();
+      lcd.setCursor(0,0);
+      lcd.print("TRANSLATING"); 
+      Serial.print("TRANSLATING");
+      delay(500);
+      lcd.setCursor(11,0);
+      lcd.print("."); 
+      Serial.print(".");
+      delay(500);
+      lcd.setCursor(12,0);
+      lcd.print(".");       
+      Serial.print(".");
+      delay(500);
+      Serial.println(".");
+      lcd.setCursor(13,0);
+      lcd.print(".");
+      delay(500);
+      Serial.println("-------------------------------");
+      f=1;
+    }
+
+    if (ch >= 'A' && ch <= 'Z')
+    {
+      lcd.init();
+      lcd.setCursor(0,0);
+      lcd.print(ch);
+      Serial.print(ch);
+      Serial.print(" ");
+      Serial.println(letters[ch-'A']);
+      lcd.setCursor(1,0);
+      lcd.print(letters[ch-'A']);
+      flashSequence(letters[ch-'A']);
+      delay(letterSpace);
+    }
+    if (ch >= '0' && ch <= '9')
+    {    
+      Serial.print(ch);
+      lcd.init();
+      lcd.setCursor(0,0);
+      lcd.print(ch);      
+      Serial.print(" ");
+      Serial.println(numbers[ch-'0']);
+      lcd.setCursor(1,0);
+      lcd.print(numbers[ch-'0']);
+      flashSequence(numbers[ch-'0']);
+      delay(letterSpace);
+    }
+    if (ch == ' ')
+    {
+      Serial.println("_");
+      lcd.init();
+      lcd.setCursor(0,0);
+      lcd.print("_");           
+      delay(wordSpace);    
+    } 
+
+     if (Serial.available() <= 0) 
+     {
+      Serial.println();
+      Serial.println("Here is your translated text !");
+      Serial.println("-------------------------------");
+      lcd.init();
+      lcd.setCursor(0,0);
+      lcd.print("Here is your");          
+      lcd.setCursor(0,1);
+      lcd.print("Translaed Text !");      
+      delay(5000);
+      lcd.init();
+      lcd.setCursor(0,0);
+      lcd.print("Give me a Text");
+      lcd.setCursor(0,1);
+      lcd.print("or a code ! ");     
+      keyboardText = false;
+      f = 0;
+     }
+  }
+ 
+  if (digitalRead(buttonPin) == LOW ) //button is pressed
+  {
+    newLetter = true; 
+    newWord = true;
+    t1=millis(); //time at button press
+    digitalWrite(ledPin, HIGH); //turn on LED and tone
+    tone(PinBuzzer, FreqBuzzer);
+    delay(debounceDelay);     
+    while (digitalRead(buttonPin) == LOW ) // wait for button release
+      {delay(debounceDelay);}
+      delay(debounceDelay);
+       
+    t2 = millis();  //time at button release
+    onTime=t2-t1;  //length of dot or dash keyed in
+    digitalWrite(ledPin, LOW); //torn off LED and tone
+    noTone(PinBuzzer); 
+    
+//check if dot or dash 
+
+    if (onTime <= dotLength*1.5) //allow for 50% longer 
+      {DotDashSeq = DotDashSeq + ".";} //build dot/dash sequence
+    else 
+      {DotDashSeq = DotDashSeq + "-";}
+  }  //end button press section
+  
+// look for a gap >= letterSpace to signal end letter
+// end of letter when gap >= letterSpace 
+
+  gap=millis()-t2; 
+  if (newLetter == true && gap>=letterSpace)  
+  { 
+    
+//check through letter sequences to find matching dash sequence
+
+    letterFound = false; keyLetter = 63; //char 63 is "?"
+    for (i=0; i<=25; i++)
+    {
+      if (DotDashSeq == letters[i]) 
+      {
+        keyLetter = i+65;
+        letterFound = true;   
+        break ;    //don't keep checking if letter found  
+      }
+    }
+    if(letterFound == false) //now check for numbers
+    {
+      for (i=0; i<=10; i++)
+      {
+      if (DotDashSeq == numbers[i]) 
+        {
+          keyLetter = i+48;
+          letterFound = true;   
+          break ;    //don't keep checking if number found  
+        }
+      }
+    }    
+    Serial.print(keyLetter);
+    lcd.init();
+    lcd.setCursor(0,0);
+    lcd.print(keyLetter);
+    if(letterFound == false) //buzz for unknown key sequence
+    {
+      tone(PinBuzzer, 100, 500);
+    }  
+    newLetter = false; //reset
+    DotDashSeq = "";
+    lineLength=lineLength+1;
+  }  
+  
+// keyed letter has been identified and printed
+
+// when gap is >= wordSpace, insert space between words
+// lengthen the word space by 50% to allow for variation
+
+  if (newWord == true && gap>=wordSpace*1.5)
+    { 
+     newWord = false; 
+     Serial.print("_");  
+     lcd.init();
+     lcd.setCursor(0,0);
+     lcd.print("Give me a Text");
+     lcd.setCursor(0,1);
+     lcd.print("or a code ! "); 
+     lineLength=lineLength+1;
+     
+// flash to indicate new word
+
+    digitalWrite(ledPin, HIGH);
+    delay(25);
+    digitalWrite(ledPin, LOW);       
+    } 
+
+// insert linebreaks
+
+  if (lineLength >= maxLineLength) 
+    {
+      Serial.println();
+      lineLength = 0;
+    }      
+} 
+
+void flashSequence(char* sequence)
+{
+  int i = 0;
+  while (sequence[i] == '.' || sequence[i] == '-')
+  {
+    flashDotOrDash(sequence[i]);
+    i++;
+  }
+}
+
+void flashDotOrDash(char dotOrDash)
+{
+  digitalWrite(ledPin, HIGH);
+  tone(PinBuzzer, FreqBuzzer);
+  if (dotOrDash == '.')
+   { delay(dotLength); }
+     else
+   { delay(dashLength); }
+
+  digitalWrite(ledPin, LOW);
+  noTone(PinBuzzer);
+  delay(dotLength); 
+}
